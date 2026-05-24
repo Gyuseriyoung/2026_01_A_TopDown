@@ -7,8 +7,7 @@ public class PlayerController : MonoBehaviour
     public float moveSpeed = 5f;
     public Sprite[] spriteUp;
     public Sprite[] spriteDown;
-    public Sprite[] spriteLeft;
-    public Sprite[] spriteRight;
+    public Sprite[] spriteSide;
     public float frameTime = 0.15f;
     private Rigidbody2D rb;
     private SpriteRenderer sr;
@@ -17,6 +16,8 @@ public class PlayerController : MonoBehaviour
     private Sprite[] currentSprites;
     private int frameIndex = 0;
     private float timer = 0f;
+
+    public SpriteRenderer spriteRenderer;
 
     private void Awake()
     {
@@ -35,12 +36,14 @@ public class PlayerController : MonoBehaviour
 
         if (input.sqrMagnitude > 0.01f)
         {
+            ChangeSprites(spriteSide);
+
             if (Mathf.Abs(input.x) >= Mathf.Abs(input.y))
             {
                 if (input.x > 0)
-                    ChangeSprites(spriteRight);
+                    spriteRenderer.flipX = true;
                 else
-                    ChangeSprites(spriteLeft);
+                    spriteRenderer.flipX = false;
             }
             else
             {
@@ -48,6 +51,9 @@ public class PlayerController : MonoBehaviour
                     ChangeSprites(spriteUp);
                 else
                     ChangeSprites(spriteDown);
+
+
+                spriteRenderer.flipX = false;
             }
         }
     }
