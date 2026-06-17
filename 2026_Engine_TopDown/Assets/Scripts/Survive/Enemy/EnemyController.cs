@@ -1,8 +1,8 @@
 using UnityEngine;
 
 /// <summary>
-/// 기본 적 AI - 플레이어를 향해 이동하며 접촉 시 데미지
-/// 사망 시 경험치 드롭
+/// 기본 적 AI — 플레이어를 향해 이동하며 접촉 시 데미지
+/// 사망 시 경험치 드랍
 /// </summary>
 [RequireComponent(typeof(Rigidbody2D))]
 [RequireComponent(typeof(HealthSystem))]
@@ -23,6 +23,9 @@ public class EnemyController : MonoBehaviour
     private Transform playerTransform;
     private float nextDamageTime;
     private bool isDead;
+    private float expMultiplier = 1f;   // WaveManager가 웨이브 배율로 주입
+
+    // ── 초기화 ────────────────────────────────────────────
 
     private void Awake()
     {
@@ -34,24 +37,23 @@ public class EnemyController : MonoBehaviour
     private void Start()
     {
         GameObject player = GameObject.FindGameObjectWithTag("Player");
-        if (player != null)
-            playerTransform = player.transform;
+        if (player != null) playerTransform = player.transform;
     }
+
+    // ── AI ────────────────────────────────────────────────
 
     private void FixedUpdate()
     {
         if (isDead || playerTransform == null) return;
-        ChasePlayer();
-    }
 
-    private void ChasePlayer()
-    {
-        Vector2 direction = ((Vector2)playerTransform.position - (Vector2)transform.position).normalized;
-        rb.linearVelocity = direction * moveSpeed;
+        Vector2 dir = ((Vector2)playerTransform.position - (Vector2)transform.position).normalized;
+        rb.linearVelocity = dir * moveSpeed;
 
-        float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
+        float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
         transform.rotation = Quaternion.Euler(0, 0, angle - 90f);
     }
+
+    // ── 접촉 데미지 ───────────────────────────────────────
 
     private void OnCollisionStay2D(Collision2D collision)
     {
@@ -67,15 +69,16 @@ public class EnemyController : MonoBehaviour
         }
     }
 
+    // ── 사망 ──────────────────────────────────────────────
+
+    /// <summary>HealthSystem.Die()에서 호출됩니다</summary>
     public void OnDead()
     {
         isDead = true;
         rb.linearVelocity = Vector2.zero;
 
         DropExpOrb();
-
-        // WaveManager.OnEnemyDead() 안에서 GameManager.OnEnemyKilled()도 호출됩니다
-        WaveManager.Instance?.OnEnemyDead();
+        WaveManager.Instance?.OnEnemyDead();   // 내부에서 GameManager.OnEnemyKilled() 호출
 
         Destroy(gameObject);
     }
@@ -87,12 +90,14 @@ public class EnemyController : MonoBehaviour
         GameObject orb = Instantiate(expOrbPrefab, transform.position, Quaternion.identity);
         ExpOrb expOrb = orb.GetComponent<ExpOrb>();
         if (expOrb != null)
-            expOrb.SetValue(expValue);
+            expOrb.SetValue(Mathf.RoundToInt(expValue * expMultiplier));
     }
 
     // ── Getter / Setter (WaveManager 배율 적용용) ─────────
 
-    public float GetMoveSpeed() => moveSpeed;         // WaveManager에서 배율 적용 시 사용
+    public float GetMoveSpeed() => moveSpeed;
     public void SetMoveSpeed(float value) => moveSpeed = value;
+
     public int GetExpValue() => expValue;
+    public void SetExpMultiplier(float multiplier) => expMultiplier = multiplier;
 }

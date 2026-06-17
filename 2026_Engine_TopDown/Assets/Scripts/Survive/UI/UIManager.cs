@@ -5,10 +5,11 @@ using TMPro;
 
 /// <summary>
 /// 게임 내 모든 UI 관리
-/// 강화 카드는 UpgradeData ScriptableObject 배열로 관리합니다
-/// 
-/// [설정 방법]
-/// upgradePool: Project 창에서 만든 UpgradeData 에셋들을 여기에 드래그
+///
+/// [Inspector 설정]
+/// upgradePool : Project에서 만든 UpgradeData 에셋들을 드래그
+/// upgradeButtons·upgradeNameTexts·upgradeDescTexts : 같은 인덱스끼리 카드 1장을 구성
+/// upgradeIconImages : Image 컴포넌트 연결 시 아이콘 표시 (선택)
 /// </summary>
 public class UIManager : MonoBehaviour
 {
@@ -18,7 +19,6 @@ public class UIManager : MonoBehaviour
     [SerializeField] private Slider hpBar;
     [SerializeField] private Slider expBar;
     [SerializeField] private TextMeshProUGUI levelText;
-    [SerializeField] private TextMeshProUGUI waveText;
     [SerializeField] private TextMeshProUGUI killCountText;
     [SerializeField] private TextMeshProUGUI timerText;
 
@@ -30,28 +30,36 @@ public class UIManager : MonoBehaviour
     [SerializeField] private Button[] upgradeButtons;
     [SerializeField] private TextMeshProUGUI[] upgradeNameTexts;
     [SerializeField] private TextMeshProUGUI[] upgradeDescTexts;
+    [SerializeField] private Image[] upgradeIconImages;  // 선택
 
-    [Header("강화 카드 데이터 (ScriptableObject)")]
-    [SerializeField] private UpgradeData[] upgradePool; // Project에서 만든 UpgradeData 에셋 배열
+    [Header("강화 풀 (ScriptableObject)")]
+    [Tooltip("Project에서 만든 UpgradeData 에셋들을 드래그하세요")]
+    [SerializeField] private UpgradeData[] upgradePool;             // ← SO 배열 슬롯
 
-    [Header("게임오버 / 클리어 UI")]
+    [Header("게임오버 UI")]
     [SerializeField] private GameObject gameOverPanel;
     [SerializeField] private TextMeshProUGUI gameOverKillText;
     [SerializeField] private TextMeshProUGUI gameOverTimeText;
     [SerializeField] private TextMeshProUGUI gameOverBestKillText;
     [SerializeField] private TextMeshProUGUI gameOverBestTimeText;
+
+    [Header("스테이지 클리어 UI")]
     [SerializeField] private GameObject stageClearPanel;
 
     [Header("일시정지 UI")]
     [SerializeField] private GameObject pausePanel;
 
-    private ExperienceSystem playerExpSystem;
+    // 플레이어 컴포넌트 캐시
     private PlayerController playerController;
+    private ExperienceSystem playerExpSystem;
     private HealthSystem playerHealth;
+
+    // 이번에 뽑힌 카드 선택지
+    private UpgradeData[] currentChoices;
+
     private float gameTime;
 
-    // 이번 카드 선택에서 뽑힌 강화 목록 (버튼 콜백용)
-    private UpgradeData[] currentUpgradeChoices;
+    // ── 초기화 ────────────────────────────────────────────
 
     private void Awake()
     {
@@ -64,8 +72,8 @@ public class UIManager : MonoBehaviour
         GameObject player = GameObject.FindGameObjectWithTag("Player");
         if (player != null)
         {
-            playerExpSystem = player.GetComponent<ExperienceSystem>();
             playerController = player.GetComponent<PlayerController>();
+            playerExpSystem = player.GetComponent<ExperienceSystem>();
             playerHealth = player.GetComponent<HealthSystem>();
 
             if (playerHealth != null)
@@ -74,10 +82,10 @@ public class UIManager : MonoBehaviour
                 playerExpSystem.OnExpChanged.AddListener(UpdateExpBar);
         }
 
-        if (gameOverPanel != null) gameOverPanel.SetActive(false);
-        if (stageClearPanel != null) stageClearPanel.SetActive(false);
-        if (upgradePanel != null) upgradePanel.SetActive(false);
-        if (pausePanel != null) pausePanel.SetActive(false);
+        SetActive(gameOverPanel, false);
+        SetActive(stageClearPanel, false);
+        SetActive(upgradePanel, false);
+        SetActive(pausePanel, false);
     }
 
     private void Update()
@@ -86,18 +94,14 @@ public class UIManager : MonoBehaviour
         {
             gameTime += Time.deltaTime;
             if (timerText != null)
-            {
-                int min = (int)(gameTime / 60);
-                int sec = (int)(gameTime % 60);
-                timerText.text = $"{min:00}:{sec:00}";
-            }
+                timerText.text = FormatTime(Mathf.RoundToInt(gameTime));
         }
 
         if (killCountText != null && GameManager.Instance != null)
             killCountText.text = $"Kill: {GameManager.Instance.KillCount}";
     }
 
-    // ── HUD 업데이트 ──────────────────────────────────────
+    // ── HUD ───────────────────────────────────────────────
 
     private void UpdateHpBar(float current, float max)
     {
@@ -114,96 +118,112 @@ public class UIManager : MonoBehaviour
 
     public void ShowUpgradeCards()
     {
-        if (upgradePanel == null || upgradePool == null || upgradePool.Length == 0) return;
+        if (upgradePool == null || upgradePool.Length == 0)
+        {
+            Debug.LogWarning("[UIManager] upgradePool이 비어 있습니다. " +
+                             "UpgradeData 에셋을 만들고 Inspector에 연결하세요");
+            playerExpSystem?.OnUpgradeSelected();
+            return;
+        }
 
+        if (upgradePanel == null || upgradeButtons == null || upgradeButtons.Length == 0)
+        {
+            Debug.LogWarning("[UIManager] upgradePanel 또는 upgradeButtons가 연결되지 않았습니다");
+            playerExpSystem?.OnUpgradeSelected();
+            return;
+        }
+
+        int count = Mathf.Min(upgradeButtons.Length, upgradePool.Length, 3);
+        currentChoices = PickRandom(count);
         upgradePanel.SetActive(true);
-
-        int choiceCount = Mathf.Min(upgradeButtons.Length, upgradePool.Length, 3);
-        currentUpgradeChoices = GetRandomUpgrades(choiceCount);
 
         for (int i = 0; i < upgradeButtons.Length; i++)
         {
             upgradeButtons[i].onClick.RemoveAllListeners();
 
-            if (i < choiceCount && currentUpgradeChoices[i] != null)
-            {
-                UpgradeData data = currentUpgradeChoices[i];
+            bool valid = i < count && currentChoices[i] != null;
+            upgradeButtons[i].gameObject.SetActive(valid);
+            if (!valid) continue;
 
-                if (upgradeNameTexts != null && i < upgradeNameTexts.Length)
-                    upgradeNameTexts[i].text = data.upgradeName;
-                if (upgradeDescTexts != null && i < upgradeDescTexts.Length)
-                    upgradeDescTexts[i].text = data.description;
+            UpgradeData data = currentChoices[i];
 
-                int capturedIndex = i;
-                upgradeButtons[i].onClick.AddListener(() => OnUpgradeSelected(capturedIndex));
-                upgradeButtons[i].gameObject.SetActive(true);
-            }
-            else
+            if (upgradeNameTexts != null && i < upgradeNameTexts.Length && upgradeNameTexts[i] != null)
+                upgradeNameTexts[i].text = data.upgradeName;
+            if (upgradeDescTexts != null && i < upgradeDescTexts.Length && upgradeDescTexts[i] != null)
+                upgradeDescTexts[i].text = data.description;
+            if (upgradeIconImages != null && i < upgradeIconImages.Length && upgradeIconImages[i] != null)
             {
-                upgradeButtons[i].gameObject.SetActive(false);
+                upgradeIconImages[i].sprite = data.icon;
+                upgradeIconImages[i].enabled = data.icon != null;
             }
+
+            int captured = i;
+            upgradeButtons[i].onClick.AddListener(() => OnCardClicked(captured));
         }
     }
 
-    private void OnUpgradeSelected(int choiceIndex)
+    private void OnCardClicked(int index)
     {
-        if (currentUpgradeChoices == null || choiceIndex >= currentUpgradeChoices.Length) return;
+        if (currentChoices == null || index >= currentChoices.Length) return;
 
-        ApplyUpgrade(currentUpgradeChoices[choiceIndex]);
+        ApplyUpgrade(currentChoices[index]);
         upgradePanel.SetActive(false);
         playerExpSystem?.OnUpgradeSelected();
     }
+
+    // ── 강화 적용 ─────────────────────────────────────────
+    // PlayerController.Stats(PlayerStatsSO)에 직접 누적합니다.
+    // SO를 통해 값이 쌓이므로 PlayerController가 매 프레임 SO를 읽으면 즉시 반영됩니다.
 
     private void ApplyUpgrade(UpgradeData data)
     {
         if (data == null) return;
 
+        // PlayerController에서 SO 참조를 가져옴
+        PlayerStatsSO stats = playerController != null ? playerController.Stats : null;
+
         switch (data.upgradeType)
         {
             case UpgradeType.AttackDamage:
-                // BulletController는 Instantiate 시점에 데미지 주입 필요
-                // 추후 PlayerStats 컴포넌트로 관리 권장
-                Debug.Log($"[Upgrade] 공격력 강화 (multiplier: {data.multiplier}) — PlayerStats 구현 후 연결");
+                stats?.ApplyDamageMultiplier(data.multiplier);
                 break;
 
             case UpgradeType.MoveSpeed:
-                if (playerController != null)
-                    playerController.SetMoveSpeed(playerController.GetMoveSpeed() * data.multiplier);
+                stats?.ApplyMoveSpeedMultiplier(data.multiplier);
                 break;
 
             case UpgradeType.FireRate:
-                if (playerController != null)
-                    playerController.SetFireRate(playerController.GetFireRate() * data.multiplier);
+                stats?.ApplyFireRateMultiplier(data.multiplier);
                 break;
 
             case UpgradeType.MaxHp:
-                if (playerHealth != null)
-                    playerHealth.SetMaxHp(playerHealth.MaxHp + data.flatValue);
+                playerHealth?.SetMaxHp(playerHealth.MaxHp + data.flatValue);
                 break;
 
             case UpgradeType.HpHeal:
-                if (playerHealth != null)
-                    playerHealth.Heal(data.flatValue);
+                playerHealth?.Heal(data.flatValue);
                 break;
 
             case UpgradeType.BulletPenetration:
-                Debug.Log("[Upgrade] 관통 강화 — BulletController 확장 후 연결");
+                Debug.Log("[Upgrade] 관통 강화 — BulletController 확장 후 연결 예정");
                 break;
         }
+
+        Debug.Log($"[Upgrade] 적용: {data.upgradeName}");
     }
 
-    private UpgradeData[] GetRandomUpgrades(int count)
-    {
-        UpgradeData[] result = new UpgradeData[count];
-        System.Collections.Generic.List<int> pool = new System.Collections.Generic.List<int>();
-        for (int i = 0; i < upgradePool.Length; i++) pool.Add(i);
+    // ── 랜덤 카드 선택 (Fisher-Yates 셔플) ───────────────
 
-        for (int i = 0; i < count && pool.Count > 0; i++)
+    private UpgradeData[] PickRandom(int count)
+    {
+        UpgradeData[] pool = (UpgradeData[])upgradePool.Clone();
+        for (int i = pool.Length - 1; i > 0; i--)
         {
-            int rand = Random.Range(0, pool.Count);
-            result[i] = upgradePool[pool[rand]];
-            pool.RemoveAt(rand);
+            int j = Random.Range(0, i + 1);
+            (pool[i], pool[j]) = (pool[j], pool[i]);
         }
+        UpgradeData[] result = new UpgradeData[count];
+        for (int i = 0; i < count; i++) result[i] = pool[i];
         return result;
     }
 
@@ -221,37 +241,34 @@ public class UIManager : MonoBehaviour
     private IEnumerator HideWaveMessage()
     {
         yield return new WaitForSeconds(2f);
-        if (waveMessageText != null)
-            waveMessageText.gameObject.SetActive(false);
+        if (waveMessageText != null) waveMessageText.gameObject.SetActive(false);
     }
 
     // ── 게임오버 / 클리어 / 일시정지 ─────────────────────
 
     public void ShowGameOver(int kills, int seconds)
     {
-        if (gameOverPanel == null) return;
-        gameOverPanel.SetActive(true);
+        SetActive(gameOverPanel, true);
 
         if (gameOverKillText != null) gameOverKillText.text = $"처치 수: {kills}";
-        if (gameOverTimeText != null) gameOverTimeText.text = $"생존 시간: {seconds / 60:00}:{seconds % 60:00}";
-
-        // 최고 기록 표시 (PlayerPrefs에서 불러옴)
-        int bestKill = PlayerPrefs.GetInt("BestKill", 0);
-        int bestTime = PlayerPrefs.GetInt("BestTime", 0);
-        if (gameOverBestKillText != null) gameOverBestKillText.text = $"최고 처치: {bestKill}";
-        if (gameOverBestTimeText != null) gameOverBestTimeText.text = $"최고 기록: {bestTime / 60:00}:{bestTime % 60:00}";
+        if (gameOverTimeText != null) gameOverTimeText.text = $"생존 시간: {FormatTime(seconds)}";
+        if (gameOverBestKillText != null) gameOverBestKillText.text = $"최고 처치: {GameManager.Instance?.BestKill}";
+        if (gameOverBestTimeText != null) gameOverBestTimeText.text = $"최고 기록: {FormatTime(GameManager.Instance?.BestTime ?? 0)}";
     }
 
-    public void ShowStageClear(int kills, int seconds)
-    {
-        if (stageClearPanel != null) stageClearPanel.SetActive(true);
-    }
+    public void ShowStageClear(int kills, int seconds) => SetActive(stageClearPanel, true);
 
-    public void ShowPauseMenu() { if (pausePanel != null) pausePanel.SetActive(true); }
-    public void HidePauseMenu() { if (pausePanel != null) pausePanel.SetActive(false); }
+    public void ShowPauseMenu() => SetActive(pausePanel, true);
+    public void HidePauseMenu() => SetActive(pausePanel, false);
 
     // ── 버튼 이벤트 ───────────────────────────────────────
 
-    public void OnRestartButton() => GameManager.Instance.RestartGame();
-    public void OnMainMenuButton() => GameManager.Instance.GoToMainMenu();
+    public void OnRestartButton() => GameManager.Instance?.RestartGame();
+    public void OnMainMenuButton() => GameManager.Instance?.GoToMainMenu();
+
+    // ── 유틸 ──────────────────────────────────────────────
+
+    private static void SetActive(GameObject go, bool active) { if (go != null) go.SetActive(active); }
+
+    private static string FormatTime(int s) => $"{s / 60:00}:{s % 60:00}";
 }
