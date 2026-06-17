@@ -1,5 +1,5 @@
 using UnityEngine;
-using UnityEngine.InputSystem;
+
 /// <summary>
 /// 플레이어 이동, 마우스 조준 발사를 담당합니다.
 /// Rigidbody2D 기반 물리 이동. 스프라이트 회전 없음 — 방향 애니메이션은
@@ -14,18 +14,16 @@ public class PlayerController : MonoBehaviour
 
     [Header("발사 설정")]
     [SerializeField] private GameObject bulletPrefab;
-    [SerializeField] private Transform firePoint;      // 총구 위치 (자식 오브젝트)
-    [SerializeField] private float fireRate = 0.3f;   // 발사 간격 (초)
+    [SerializeField] private Transform firePoint;
+    [SerializeField] private float fireRate = 0.3f;
     [SerializeField] private float bulletSpeed = 10f;
 
-    // 내부 상태
     private Rigidbody2D rb;
     private Vector2 moveInput;
     private float nextFireTime;
     private Camera mainCamera;
     private bool isDead;
 
-    /// <summary>PlayerAnimationController가 읽어가는 현재 입력 방향</summary>
     public Vector2 MoveInput => moveInput;
 
     private void Awake()
@@ -37,7 +35,6 @@ public class PlayerController : MonoBehaviour
     private void Update()
     {
         if (isDead) return;
-
         HandleMovementInput();
         HandleAutoFire();
     }
@@ -48,21 +45,17 @@ public class PlayerController : MonoBehaviour
         Move();
     }
 
-    // ── 이동 ──────────────────────────────────────────────
-
     private void HandleMovementInput()
     {
-        float x = Input.GetAxisRaw("Horizontal"); // A/D
-        float y = Input.GetAxisRaw("Vertical");   // W/S
-        moveInput = new Vector2(x, y).normalized; // 대각선 이동 속도 정규화
+        float x = Input.GetAxisRaw("Horizontal");
+        float y = Input.GetAxisRaw("Vertical");
+        moveInput = new Vector2(x, y).normalized;
     }
 
     private void Move()
     {
         rb.linearVelocity = moveInput * moveSpeed;
     }
-
-    // ── 자동 발사 (총알 방향은 마우스 기준 유지) ──────────
 
     private void HandleAutoFire()
     {
@@ -75,7 +68,6 @@ public class PlayerController : MonoBehaviour
 
     private void Fire()
     {
-        // 마우스 방향으로 총알 생성
         Vector3 mouseWorldPos = mainCamera.ScreenToWorldPoint(Input.mousePosition);
         Vector2 direction = (mouseWorldPos - firePoint.position).normalized;
 
@@ -86,9 +78,6 @@ public class PlayerController : MonoBehaviour
             bullet.Init(direction, bulletSpeed, gameObject.tag);
     }
 
-    // ── 외부 호출 ─────────────────────────────────────────
-
-    /// <summary>HealthSystem에서 사망 시 호출</summary>
     public void OnDead()
     {
         isDead = true;
@@ -96,8 +85,16 @@ public class PlayerController : MonoBehaviour
         GameManager.Instance.OnPlayerDead();
     }
 
+    // ── Getter / Setter ───────────────────────────────────
+
     public float GetMoveSpeed() => moveSpeed;
     public void SetMoveSpeed(float value) => moveSpeed = value;
+
+    public float GetFireRate() => fireRate;           // UIManager ApplyUpgrade에서 사용
     public void SetFireRate(float value) => fireRate = value;
+
+    public float GetBulletSpeed() => bulletSpeed;
+    public void SetBulletSpeed(float value) => bulletSpeed = value;
+
     public bool IsDead => isDead;
 }

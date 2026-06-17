@@ -12,14 +12,13 @@ public class EnemyController : MonoBehaviour
     [SerializeField] private float moveSpeed = 2.5f;
 
     [Header("전투 설정")]
-    [SerializeField] private float contactDamage = 10f;    // 플레이어와 접촉 시 데미지
-    [SerializeField] private float damageInterval = 1f;   // 데미지 쿨타임 (초)
+    [SerializeField] private float contactDamage = 10f;
+    [SerializeField] private float damageInterval = 1f;
 
     [Header("보상 설정")]
-    [SerializeField] private int expValue = 10;            // 처치 시 경험치
-    [SerializeField] private GameObject expOrbPrefab;      // 경험치 구슬 프리팹
+    [SerializeField] private int expValue = 10;
+    [SerializeField] private GameObject expOrbPrefab;
 
-    // 내부 상태
     private Rigidbody2D rb;
     private Transform playerTransform;
     private float nextDamageTime;
@@ -34,7 +33,6 @@ public class EnemyController : MonoBehaviour
 
     private void Start()
     {
-        // 씬에서 플레이어 탐색
         GameObject player = GameObject.FindGameObjectWithTag("Player");
         if (player != null)
             playerTransform = player.transform;
@@ -46,19 +44,14 @@ public class EnemyController : MonoBehaviour
         ChasePlayer();
     }
 
-    // ── AI ───────────────────────────────────────────────
-
     private void ChasePlayer()
     {
         Vector2 direction = ((Vector2)playerTransform.position - (Vector2)transform.position).normalized;
         rb.linearVelocity = direction * moveSpeed;
 
-        // 이동 방향으로 회전 (선택사항)
         float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
         transform.rotation = Quaternion.Euler(0, 0, angle - 90f);
     }
-
-    // ── 충돌 데미지 ───────────────────────────────────────
 
     private void OnCollisionStay2D(Collision2D collision)
     {
@@ -74,9 +67,6 @@ public class EnemyController : MonoBehaviour
         }
     }
 
-    // ── 사망 처리 ─────────────────────────────────────────
-
-    /// <summary>HealthSystem.Die()에서 호출</summary>
     public void OnDead()
     {
         isDead = true;
@@ -84,10 +74,9 @@ public class EnemyController : MonoBehaviour
 
         DropExpOrb();
 
-        // WaveManager에 사망 알림
+        // WaveManager.OnEnemyDead() 안에서 GameManager.OnEnemyKilled()도 호출됩니다
         WaveManager.Instance?.OnEnemyDead();
 
-        // TODO: 사망 애니메이션/이펙트 재생 후 제거로 교체
         Destroy(gameObject);
     }
 
@@ -101,6 +90,9 @@ public class EnemyController : MonoBehaviour
             expOrb.SetValue(expValue);
     }
 
+    // ── Getter / Setter (WaveManager 배율 적용용) ─────────
+
+    public float GetMoveSpeed() => moveSpeed;         // WaveManager에서 배율 적용 시 사용
     public void SetMoveSpeed(float value) => moveSpeed = value;
     public int GetExpValue() => expValue;
 }
