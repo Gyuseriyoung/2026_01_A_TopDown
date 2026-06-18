@@ -57,11 +57,17 @@ public class GameManager : MonoBehaviour
 
     private void Update()
     {
+        if (CurrentState == GameState.Playing || CurrentState == GameState.Paused)
+        {
+            if (Input.GetKeyDown(KeyCode.Escape))
+            {
+                TogglePause();
+            }
+        }
         if (CurrentState == GameState.Playing)
-            SurvivedTime = Time.time - gameStartTime;
-
-        if (Input.GetKeyDown(KeyCode.Escape) && CurrentState == GameState.Playing)
-            TogglePause();
+        {
+            SurvivedTime += Time.deltaTime;
+        }
     }
 
     // ── 기록 저장 / 불러오기 (PlayerPrefs) ───────────────
@@ -157,7 +163,7 @@ public class GameManager : MonoBehaviour
             Time.timeScale = 1f;
             UIManager.Instance?.HidePauseMenu();
         }
-        else
+        else if (CurrentState == GameState.Playing) 
         {
             CurrentState = GameState.Paused;
             Time.timeScale = 0f;
