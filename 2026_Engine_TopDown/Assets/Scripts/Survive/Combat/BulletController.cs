@@ -13,6 +13,7 @@ public class BulletController : MonoBehaviour
     [SerializeField] private float damage = 10f;
     [SerializeField] private float lifetime = 3f;    // 일정 시간 후 자동 제거
 
+    private int remainingPenetration;
     private Rigidbody2D rb;
     private string ownerTag;  // "Player" or "Enemy" - 아군 충돌 방지용
 
@@ -26,10 +27,12 @@ public class BulletController : MonoBehaviour
     }
 
     /// <summary>총알 초기화. Fire() 직후 호출</summary>
-    public void Init(Vector2 direction, float speed, string shooter)
+    public void Init(Vector2 direction, float speed, string shooter, int maxPenetration)
     {
         ownerTag = shooter;
         rb.linearVelocity = direction * speed;
+
+        remainingPenetration = maxPenetration;
 
         // 총알 방향으로 회전
         float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
@@ -49,7 +52,20 @@ public class BulletController : MonoBehaviour
         // 체력 시스템이 있는 오브젝트에만 데미지
         HealthSystem health = other.GetComponent<HealthSystem>();
         if (health != null)
-            health.TakeDamage(damage);
+        {
+            if (remainingPenetration > 0)
+            {
+                remainingPenetration--; // 관통 횟수 차감
+
+                health.TakeDamage(damage);
+                return;
+            }
+            else
+            {
+               
+                health.TakeDamage(damage);
+            }
+        }
 
         DestroyBullet();
     }

@@ -176,6 +176,9 @@ MonoBehaviour:
   damageInterval: 1
   expValue: 10
   expOrbPrefab: {fileID: 7656755314015365107, guid: 1e0859bda31f2f048bf2e206ab4d6705, type: 3}
+  goldCoinPrefab: {fileID: 2239635955285063824, guid: 9b656c64ce50ca1419a1eeba08003722, type: 3}
+  goldDropChance: 0.3
+  goldValue: 5
 --- !u!114 &4633308262718923794
 MonoBehaviour:
   m_ObjectHideFlags: 0

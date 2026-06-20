@@ -1,15 +1,6 @@
 using System.Collections;
 using UnityEngine;
 
-/// <summary>
-/// 웨이브 방식 적 스폰 관리자
-/// WaveData ScriptableObject 배열로 웨이브를 설정합니다
-///
-/// [Inspector 설정 방법]
-/// 1. Project 창 우클릭 → Create → Game/Wave Data 로 웨이브 에셋 생성
-/// 2. Waves 배열에 순서대로 드래그 (Wave1.asset, Wave2.asset ...)
-/// 3. Default Enemy Prefabs: WaveData에 프리팹이 없을 때 사용할 기본 프리팹
-/// </summary>
 public class WaveManager : MonoBehaviour
 {
     public static WaveManager Instance { get; private set; }
@@ -29,8 +20,6 @@ public class WaveManager : MonoBehaviour
     private int remainingEnemies;
     private Transform playerTransform;
 
-    // ── 초기화 ────────────────────────────────────────────
-
     private void Awake()
     {
         if (Instance == null) Instance = this;
@@ -42,46 +31,61 @@ public class WaveManager : MonoBehaviour
         GameObject player = GameObject.FindGameObjectWithTag("Player");
         if (player != null) playerTransform = player.transform;
 
-        if (waves == null || waves.Length == 0)
+        StartWave();
+    }
+
+    public void StartWave()
+    {
+        if (currentWaveIndex >= waves.Length)
         {
-            Debug.LogError("[WaveManager] waves 배열이 비어 있습니다. " +
-                           "Project에서 WaveData 에셋을 만들고 Inspector에 연결하세요");
+            GameManager.Instance?.OnStageClear();
             return;
         }
 
-        StartCoroutine(RunWaveSequence());
+        StartCoroutine(nameof(SpawnLoop));
     }
 
-    // ── 웨이브 시퀀스 ─────────────────────────────────────
-
-    private IEnumerator RunWaveSequence()
+    // ── ⭐️ 수정된 스폰 루프 코루틴 ───────────────────────────
+    private IEnumerator SpawnLoop()
     {
-        for (int i = 0; i < waves.Length; i++)
+        WaveData data = waves[currentWaveIndex];
+        remainingEnemies = data.enemyCount;
+
+        UIManager.Instance?.ShowWaveMessage($"Wave {currentWaveIndex + 1}");
+        yield return new WaitForSeconds(data.startDelay);
+
+        // [분기 1] 보스 웨이브일 때
+        if (data.waveType == WaveType.Boss)
         {
-            currentWaveIndex = i;
-            WaveData data = waves[i];
-
-            UIManager.Instance?.ShowWaveMessage($"Wave {i + 1}");
-            yield return new WaitForSeconds(data.startDelay);
-
-            yield return StartCoroutine(SpawnWave(data));
-            yield return new WaitUntil(() => remainingEnemies <= 0);
-
-            bool isLastWave = i == waves.Length - 1;
-            if (!isLastWave)
+            remainingEnemies = 1; // 보스는 단 한 마리만 타겟으로 잡음
+            SpawnBossEnemy(data);
+            while (remainingEnemies > 0)
             {
-                UIManager.Instance?.ShowWaveMessage("Wave Clear!");
-                yield return new WaitForSeconds(timeBetweenWaves);
+                yield return null;
             }
         }
 
-        GameManager.Instance?.OnStageClear();
-    }
+        // [분기 2] 원형 포위 스폰 웨이브일 때
+        if (data.waveType == WaveType.CircleSurround)
+        {
+            int spawnedCount = 0;
+            while (spawnedCount < data.enemyCount)
+            {
+                // 한 번에 소환할 적 마리 수 계산 (남은 적 수 고려)
+                int countToSpawn = Mathf.Min(data.circleSpawnCount, data.enemyCount - spawnedCount);
 
-    private IEnumerator SpawnWave(WaveData data)
-    {
-        remainingEnemies = data.enemyCount;
+                SpawnEnemyCircle(data, countToSpawn);
+                spawnedCount += countToSpawn;
 
+                yield return new WaitForSeconds(data.spawnInterval);
+            }
+            while (remainingEnemies > 0)
+            {
+                yield return null;
+            }
+        }
+
+        // [분기 3] 일반 웨이브일 때 (기존 방식 유지)
         for (int i = 0; i < data.enemyCount; i++)
         {
             SpawnEnemy(data);
@@ -89,36 +93,66 @@ public class WaveManager : MonoBehaviour
         }
     }
 
-    // ── 스폰 ──────────────────────────────────────────────
+    // ── ⭐️ 스폰 실제 처리 함수들 (Instantiate 담당) ────────────────
 
+    // 1) 기존의 일반 랜덤 사방 스폰 함수
     private void SpawnEnemy(WaveData data)
     {
-        if (playerTransform == null) return;
-
-        GameObject prefab = data.GetRandomEnemyPrefab();
-
-        // WaveData에 프리팹 없으면 기본 프리팹 사용
-        if (prefab == null)
-        {
-            if (defaultEnemyPrefabs == null || defaultEnemyPrefabs.Length == 0)
-            {
-                Debug.LogWarning("[WaveManager] 스폰할 프리팹이 없습니다");
-                remainingEnemies = Mathf.Max(0, remainingEnemies - 1);
-                return;
-            }
-            prefab = defaultEnemyPrefabs[Random.Range(0, defaultEnemyPrefabs.Length)];
-        }
+        GameObject prefab = data.GetRandomEnemyPrefab() ?? defaultEnemyPrefabs[Random.Range(0, defaultEnemyPrefabs.Length)];
+        if (prefab == null) return;
 
         Vector2 spawnPos = GetSpawnPosition();
         GameObject enemy = Instantiate(prefab, spawnPos, Quaternion.identity);
-
-        ApplyWaveMultipliers(enemy, data);
+        ApplyWaveModifiers(enemy, data);
     }
 
-    /// <summary>WaveData의 배율을 스폰된 적에게 적용합니다</summary>
-    private void ApplyWaveMultipliers(GameObject enemy, WaveData data)
+    // 2) 플레이어를 중점으로 동그랗게 원을 그리며 스폰하는 신규 함수
+    private void SpawnEnemyCircle(WaveData data, int count)
     {
-        // HP 배율
+        if (playerTransform == null) return;
+
+        for (int i = 0; i < count; i++)
+        {
+            // 360도(PI * 2)를 배치할 마리 수만큼 나누어 정교한 라디안 각도 계산
+            float angle = i * (Mathf.PI * 2f) / count;
+
+            // 삼각함수로 원주 상의 위치 구하기
+            Vector2 spawnOffset = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * spawnRadius;
+            Vector2 spawnPos = (Vector2)playerTransform.position + spawnOffset;
+
+            GameObject prefab = data.GetRandomEnemyPrefab() ?? defaultEnemyPrefabs[Random.Range(0, defaultEnemyPrefabs.Length)];
+            if (prefab != null)
+            {
+                GameObject enemy = Instantiate(prefab, spawnPos, Quaternion.identity);
+                ApplyWaveModifiers(enemy, data);
+            }
+        }
+    }
+
+    // 3) 보스를 스폰하는 신규 함수
+    private void SpawnBossEnemy(WaveData data)
+    {
+        if (playerTransform == null) return;
+
+        Vector2 spawnPos = GetSpawnPosition();
+        GameObject prefab = data.GetRandomEnemyPrefab() ?? defaultEnemyPrefabs[Random.Range(0, defaultEnemyPrefabs.Length)];
+
+        if (prefab != null)
+        {
+            GameObject boss = Instantiate(prefab, spawnPos, Quaternion.identity);
+            ApplyWaveModifiers(boss, data);
+
+            // 보스답게 스케일 키우기 (2배 확대)
+            boss.transform.localScale = prefab.transform.localScale * 2f;
+        }
+    }
+
+    // ── 유틸 및 기존 함수 유지 ───────────────────────────────────────
+
+    private void ApplyWaveModifiers(GameObject enemy, WaveData data)
+    {
+        if (enemy == null || data == null) return;
+
         if (!Mathf.Approximately(data.enemyHpMultiplier, 1f))
         {
             HealthSystem hp = enemy.GetComponent<HealthSystem>();
@@ -126,7 +160,6 @@ public class WaveManager : MonoBehaviour
                 hp.SetMaxHp(hp.MaxHp * data.enemyHpMultiplier, healToFull: true);
         }
 
-        // 이동속도 배율
         if (!Mathf.Approximately(data.enemySpeedMultiplier, 1f))
         {
             EnemyController ec = enemy.GetComponent<EnemyController>();
@@ -134,7 +167,6 @@ public class WaveManager : MonoBehaviour
                 ec.SetMoveSpeed(ec.GetMoveSpeed() * data.enemySpeedMultiplier);
         }
 
-        // 경험치 드랍 배율
         if (!Mathf.Approximately(data.enemyExpMultiplier, 1f))
         {
             EnemyController ec = enemy.GetComponent<EnemyController>();
@@ -145,20 +177,31 @@ public class WaveManager : MonoBehaviour
 
     private Vector2 GetSpawnPosition()
     {
+        if (playerTransform == null) return Vector2.zero;
         float angle = Random.Range(0f, Mathf.PI * 2f);
-        return (Vector2)playerTransform.position
-               + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * spawnRadius;
+        return (Vector2)playerTransform.position + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * spawnRadius;
     }
 
-    // ── 외부 호출 ─────────────────────────────────────────
-
-    /// <summary>EnemyController.OnDead()에서 호출</summary>
     public void OnEnemyDead()
     {
-        remainingEnemies = Mathf.Max(0, remainingEnemies - 1);
+        // 이미 0 이하인데 또 들어오는 언더플로우 방지
+        if (remainingEnemies <= 0) return;
+
+        remainingEnemies--;
         GameManager.Instance?.OnEnemyKilled();
+
+        if (remainingEnemies <= 0)
+        {
+            StartCoroutine(nameof(NextWaveRoutine));
+        }
+    }
+
+    private IEnumerator NextWaveRoutine()
+    {
+        yield return new WaitForSeconds(timeBetweenWaves);
+        currentWaveIndex++;
+        StartWave();
     }
 
     public int GetCurrentWave() => currentWaveIndex + 1;
-    public int GetRemainingEnemies() => remainingEnemies;
 }

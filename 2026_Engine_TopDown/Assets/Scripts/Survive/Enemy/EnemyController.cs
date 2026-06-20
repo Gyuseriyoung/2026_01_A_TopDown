@@ -19,6 +19,12 @@ public class EnemyController : MonoBehaviour
     [SerializeField] private int expValue = 10;
     [SerializeField] private GameObject expOrbPrefab;
 
+    [Header("골드 보상 설정")]
+    [SerializeField] private GameObject goldCoinPrefab;
+    [Range(0f, 1f)][SerializeField] private float goldDropChance = 0.3f;
+    [SerializeField] private int goldValue = 5;
+
+
     private Rigidbody2D rb;
     private Transform playerTransform;
     private float nextDamageTime;
@@ -74,13 +80,30 @@ public class EnemyController : MonoBehaviour
     /// <summary>HealthSystem.Die()에서 호출됩니다</summary>
     public void OnDead()
     {
+        if (isDead) return; // 중복 사망 방지용 안전장치
         isDead = true;
         rb.linearVelocity = Vector2.zero;
 
-        DropExpOrb();
-        WaveManager.Instance?.OnEnemyDead();   // 내부에서 GameManager.OnEnemyKilled() 호출
+        if (TryGetComponent<Collider2D>(out var col)) col.enabled = false; // 이전 관통 버그 수정용 코드
 
-        Destroy(gameObject);
+        DropExpOrb();
+        DropGoldCoin(); // ⭐️ 골드 드랍 함수 호출
+
+        WaveManager.Instance?.OnEnemyDead();
+        Destroy(gameObject, 0.05f);
+    }
+
+    private void DropGoldCoin()
+    {
+        if (goldCoinPrefab == null) return;
+
+        // 랜덤 확률 체크 (0.0 ~ 1.0)
+        if (Random.value <= goldDropChance)
+        {
+            GameObject coinObj = Instantiate(goldCoinPrefab, transform.position, Quaternion.identity);
+            GoldCoin coin = coinObj.GetComponent<GoldCoin>();
+            if (coin != null) coin.SetValue(goldValue);
+        }
     }
 
     private void DropExpOrb()

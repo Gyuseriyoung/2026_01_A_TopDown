@@ -86,12 +86,16 @@ public class PlayerController : MonoBehaviour
 
         if (bullet != null)
         {
-            // SO에서 BulletDamage·BulletSpeed를 직접 읽어 총알에 주입
             float damage = playerStats != null ? playerStats.BulletDamage : 10f;
             float speed = playerStats != null ? playerStats.BulletSpeed : 10f;
 
+            // ⭐️ 정상 컴파일된 SO에서 최종 관통력을 가져옵니다.
+            int penetrationCount = playerStats != null ? playerStats.PenetrationCount : 0;
+
             bullet.SetDamage(damage);
-            bullet.Init(direction, speed, gameObject.tag);
+            bullet.Init(direction, speed, gameObject.tag,penetrationCount);
+
+            
         }
     }
 

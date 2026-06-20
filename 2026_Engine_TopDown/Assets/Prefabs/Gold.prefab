@@ -1,6 +1,6 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!1 &7656755314015365107
+--- !u!1 &2239635955285063824
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -8,40 +8,41 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 2901992867663897115}
-  - component: {fileID: 4142143045794592260}
-  - component: {fileID: 8262925963919046934}
-  - component: {fileID: 4857833992308158712}
+  - component: {fileID: 4689036413841279990}
+  - component: {fileID: 6954786266090739770}
+  - component: {fileID: 1743175504885356073}
+  - component: {fileID: 1150296547636162065}
+  - component: {fileID: 292762999513595664}
   m_Layer: 0
-  m_Name: ExpOrb
+  m_Name: Gold
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &2901992867663897115
+--- !u!4 &4689036413841279990
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7656755314015365107}
+  m_GameObject: {fileID: 2239635955285063824}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 1.9702, y: -1.7788, z: 0}
-  m_LocalScale: {x: 0.093312584, y: 0.093312584, z: 0.093312584}
+  m_LocalPosition: {x: 2.495, y: -1.861, z: 0}
+  m_LocalScale: {x: 0.0796161, y: 0.0796161, z: 0.0796161}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!212 &4142143045794592260
+--- !u!212 &6954786266090739770
 SpriteRenderer:
   serializedVersion: 2
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7656755314015365107}
+  m_GameObject: {fileID: 2239635955285063824}
   m_Enabled: 1
   m_CastShadows: 0
   m_ReceiveShadows: 0
@@ -83,23 +84,23 @@ SpriteRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_MaskInteraction: 0
-  m_Sprite: {fileID: 7847298327095715650, guid: f85131760fb28804a88e180a0bd0508c, type: 3}
+  m_Sprite: {fileID: -3988769855312385993, guid: 09abe2cd2fb0a3c4fa0e8cf72632c1b7, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0
-  m_Size: {x: 6.79, y: 7.15}
+  m_Size: {x: 8.35, y: 8.75}
   m_AdaptiveModeThreshold: 0.5
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1
   m_SpriteSortPoint: 0
---- !u!58 &8262925963919046934
+--- !u!58 &1743175504885356073
 CircleCollider2D:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7656755314015365107}
+  m_GameObject: {fileID: 2239635955285063824}
   m_Enabled: 1
   serializedVersion: 3
   m_Density: 1
@@ -127,20 +128,47 @@ CircleCollider2D:
   m_UsedByEffector: 0
   m_CompositeOperation: 0
   m_CompositeOrder: 0
-  m_Offset: {x: -0.36, y: 0.81}
-  m_Radius: 2.371651
---- !u!114 &4857833992308158712
+  m_Offset: {x: -0.8856242, y: 0.41000903}
+  m_Radius: 3.3417745
+--- !u!50 &1150296547636162065
+Rigidbody2D:
+  serializedVersion: 5
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2239635955285063824}
+  m_BodyType: 0
+  m_Simulated: 1
+  m_UseFullKinematicContacts: 0
+  m_UseAutoMass: 0
+  m_Mass: 1
+  m_LinearDamping: 0
+  m_AngularDamping: 0.05
+  m_GravityScale: 0
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_Interpolate: 0
+  m_SleepingMode: 1
+  m_CollisionDetection: 0
+  m_Constraints: 4
+--- !u!114 &292762999513595664
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7656755314015365107}
+  m_GameObject: {fileID: 2239635955285063824}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 9048f4e37d81ed24891ca37804f6c364, type: 3}
+  m_Script: {fileID: 11500000, guid: 8870a37ea891080409fee67ed98489fe, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::ExpOrb
+  m_EditorClassIdentifier: Assembly-CSharp::GoldCoin
   attractRange: 3
   attractSpeed: 8
-  lifetime: 10
+  lifetime: 15

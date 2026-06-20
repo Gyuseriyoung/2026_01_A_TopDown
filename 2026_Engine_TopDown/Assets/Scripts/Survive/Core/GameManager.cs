@@ -21,16 +21,21 @@ public class GameManager : MonoBehaviour
     [SerializeField] private string mainMenuScene = "MainMenu";
     [SerializeField] private string gameScene = "GameScene";
 
+
     // 세션 통계
     public int KillCount { get; private set; }
     public float SurvivedTime { get; private set; }
     public int ReachedWave { get; private set; }
+
+    public int TotalGold { get; private set; }
+    public int CurrentSessionGold { get; private set; } // 이번 판에서 번 돈 (UI 표시용)
 
     // 최고 기록 (PlayerPrefs에서 로드)
     public int BestKill { get; private set; }
     public int BestTime { get; private set; }
     public int BestWave { get; private set; }
 
+    private const string GOLD_KEY = "TotalGold";
     private float gameStartTime;
 
     private void Awake()
@@ -51,6 +56,12 @@ public class GameManager : MonoBehaviour
 
     private void Start()
     {
+        // 게임 시작 시 기존에 저장되어 있던 총 골드를 불러옴
+        TotalGold = PlayerPrefs.GetInt(GOLD_KEY, 0);
+
+        // 세션 초기화
+        CurrentSessionGold = 0;
+
         gameStartTime = Time.time;
         Time.timeScale = 1f;
     }
@@ -122,6 +133,32 @@ public class GameManager : MonoBehaviour
 
     // ── 상태 전환 ─────────────────────────────────────────
 
+
+    public void AddGold(int amount)
+    {
+        CurrentSessionGold += amount;
+        TotalGold += amount;
+
+        // 실시간으로 총 골드를 디스크에 세이브
+        PlayerPrefs.SetInt(GOLD_KEY, TotalGold);
+        PlayerPrefs.Save();
+
+        // 인게임 HUD UI가 있다면 골드 텍스트 갱신 알림 호출 가능
+        // UIManager.Instance?.UpdateGoldText(CurrentSessionGold);
+    }
+
+    // 상점에서 돈을 소비할 때 사용할 메서드
+    public bool SpendGold(int amount)
+    {
+        if (TotalGold >= amount)
+        {
+            TotalGold -= amount;
+            PlayerPrefs.SetInt(GOLD_KEY, TotalGold);
+            PlayerPrefs.Save();
+            return true; // 구매 성공
+        }
+        return false; // 잔액 부족
+    }
     public void OnPlayerDead()
     {
         if (CurrentState != GameState.Playing) return;

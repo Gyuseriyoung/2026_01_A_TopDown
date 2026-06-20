@@ -2,6 +2,7 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
+using Unity.VisualScripting;
 
 /// <summary>
 /// 게임 내 모든 UI 관리
@@ -48,6 +49,9 @@ public class UIManager : MonoBehaviour
 
     [Header("일시정지 UI")]
     [SerializeField] private GameObject pausePanel;
+
+    [Header("상점 UI")]
+    [SerializeField] private GameObject ShopPanel;
 
     // 플레이어 컴포넌트 캐시
     private PlayerController playerController;
@@ -205,7 +209,7 @@ public class UIManager : MonoBehaviour
                 break;
 
             case UpgradeType.BulletPenetration:
-                Debug.Log("[Upgrade] 관통 강화 — BulletController 확장 후 연결 예정");
+                stats?.ApplyPenetrationBonus(Mathf.RoundToInt(data.flatValue));
                 break;
         }
 
@@ -267,6 +271,21 @@ public class UIManager : MonoBehaviour
     public void OnMainMenuButton() => GameManager.Instance?.GoToMainMenu();
 
     // ── 유틸 ──────────────────────────────────────────────
+
+    public void ShowShopMenu()
+    {
+        SetActive(ShopPanel, true);
+    }
+
+    public void HideShopMenu()
+    {
+        SetActive(ShopPanel, false);
+    }
+
+    public void QuiltGame()
+    {
+        Application.Quit();
+    }
 
     private static void SetActive(GameObject go, bool active) { if (go != null) go.SetActive(active); }
 

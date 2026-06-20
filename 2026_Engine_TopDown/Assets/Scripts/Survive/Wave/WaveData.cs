@@ -13,6 +13,9 @@ using UnityEngine;
 ///   spawnWeights  = [5,     3,      1  ]  → 슬라임 5/9, 고블린 3/9, 오크 1/9 확률
 ///   비워두면 균등 확률로 선택합니다
 /// </summary>
+
+public enum WaveType { Normal, CircleSurround, Boss } // 웨이브 형태 정의 
+
 [CreateAssetMenu(fileName = "WaveData", menuName = "Game/Wave Data")]
 public class WaveData : ScriptableObject
 {
@@ -25,6 +28,11 @@ public class WaveData : ScriptableObject
 
     [Tooltip("'Wave N' 메시지 출력 후 스폰 시작까지 대기 시간 (초)")]
     public float startDelay = 2f;
+
+    [Header("웨이브 패턴 설정")]
+    public WaveType waveType = WaveType.Normal;
+    [Tooltip("CircleSurround 패턴일 때, 몇 마리의 적을 동시에 원으로 스폰할지")]
+    public int circleSpawnCount = 12;
 
     [Header("적 구성")]
     [Tooltip("이 웨이브에서 스폰할 적 프리팹 목록.\n비워두면 WaveManager의 defaultEnemyPrefabs 사용")]
