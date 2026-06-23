@@ -1,16 +1,11 @@
 using System.Collections;
+using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
-using TMPro;
-using Unity.VisualScripting;
 
 /// <summary>
 /// 게임 내 모든 UI 관리
-///
-/// [Inspector 설정]
-/// upgradePool : Project에서 만든 UpgradeData 에셋들을 드래그
-/// upgradeButtons·upgradeNameTexts·upgradeDescTexts : 같은 인덱스끼리 카드 1장을 구성
-/// upgradeIconImages : Image 컴포넌트 연결 시 아이콘 표시 (선택)
 /// </summary>
 public class UIManager : MonoBehaviour
 {
@@ -22,6 +17,11 @@ public class UIManager : MonoBehaviour
     [SerializeField] private TextMeshProUGUI levelText;
     [SerializeField] private TextMeshProUGUI killCountText;
     [SerializeField] private TextMeshProUGUI timerText;
+    [SerializeField] private TextMeshProUGUI goldText;
+
+    [Header("결과 창 UI 요소들")]
+    [SerializeField] private TextMeshProUGUI sessionTimeText;
+    [SerializeField] private TextMeshProUGUI sessionKillsText;
 
     [Header("웨이브 알림")]
     [SerializeField] private TextMeshProUGUI waveMessageText;
@@ -31,39 +31,27 @@ public class UIManager : MonoBehaviour
     [SerializeField] private Button[] upgradeButtons;
     [SerializeField] private TextMeshProUGUI[] upgradeNameTexts;
     [SerializeField] private TextMeshProUGUI[] upgradeDescTexts;
-    [SerializeField] private Image[] upgradeIconImages;  // 선택
+    [SerializeField] private Image[] upgradeIconImages;
 
-    [Header("강화 풀 (ScriptableObject)")]
-    [Tooltip("Project에서 만든 UpgradeData 에셋들을 드래그하세요")]
-    [SerializeField] private UpgradeData[] upgradePool;             // ← SO 배열 슬롯
+    [Header("전체 카드 풀 (ScriptableObject들)")]
+    [SerializeField] private List<UpgradeData> upgradePool = new List<UpgradeData>();
 
-    [Header("게임오버 UI")]
+    [Header("참조")]
+    [SerializeField] private PlayerStatsSO playerStats;
+
+    [Header("게임 오버 UI")]
     [SerializeField] private GameObject gameOverPanel;
     [SerializeField] private TextMeshProUGUI gameOverKillText;
-    [SerializeField] private TextMeshProUGUI gameOverTimeText;
     [SerializeField] private TextMeshProUGUI gameOverBestKillText;
     [SerializeField] private TextMeshProUGUI gameOverBestTimeText;
 
-    [Header("스테이지 클리어 UI")]
+    [Header("게임 클리어 UI")]
     [SerializeField] private GameObject stageClearPanel;
-
-    [Header("일시정지 UI")]
     [SerializeField] private GameObject pausePanel;
-
-    [Header("상점 UI")]
     [SerializeField] private GameObject ShopPanel;
 
-    // 플레이어 컴포넌트 캐시
-    private PlayerController playerController;
-    private ExperienceSystem playerExpSystem;
-    private HealthSystem playerHealth;
-
-    // 이번에 뽑힌 카드 선택지
-    private UpgradeData[] currentChoices;
-
-    private float gameTime;
-
-    // ── 초기화 ────────────────────────────────────────────
+    // 현재 화면에 표시된 랜덤 카드들의 목록을 기억하는 바구니
+    private List<UpgradeData> currentDisplayedUpgrades = new List<UpgradeData>();
 
     private void Awake()
     {
@@ -73,221 +61,172 @@ public class UIManager : MonoBehaviour
 
     private void Start()
     {
-        GameObject player = GameObject.FindGameObjectWithTag("Player");
-        if (player != null)
-        {
-            playerController = player.GetComponent<PlayerController>();
-            playerExpSystem = player.GetComponent<ExperienceSystem>();
-            playerHealth = player.GetComponent<HealthSystem>();
-
-            if (playerHealth != null)
-                playerHealth.OnHpChanged.AddListener(UpdateHpBar);
-            if (playerExpSystem != null)
-                playerExpSystem.OnExpChanged.AddListener(UpdateExpBar);
-        }
-
+        SetActive(upgradePanel, false);
         SetActive(gameOverPanel, false);
         SetActive(stageClearPanel, false);
-        SetActive(upgradePanel, false);
         SetActive(pausePanel, false);
+        SetActive(ShopPanel, false);
     }
 
-    private void Update()
+    public void UpdateHP(float current, float max) { if (hpBar != null) hpBar.value = current / max; }
+    public void UpdateEXP(float current, float max) { if (expBar != null) expBar.value = current / max; }
+    public void UpdateLevel(int level) { if (levelText != null) levelText.text = $"LV.{level}"; }
+    public void UpdateKillCount(int count) { if (killCountText != null) killCountText.text = $"{count}"; }
+    public void UpdateGoldText(int gold) { if (goldText != null) goldText.text = $"{gold}"; }
+
+    public void UpdateTimer(float totalSeconds)
     {
-        if (GameManager.Instance?.CurrentState == GameManager.GameState.Playing)
+        if (timerText != null) timerText.text = FormatTime(totalSeconds);
+    }
+
+    private string FormatTime(float totalSeconds)
+    {
+        int minutes = Mathf.FloorToInt(totalSeconds / 60f);
+        int seconds = Mathf.FloorToInt(totalSeconds % 60f);
+        return $"{minutes:00}:{seconds:00}";
+    }
+
+    public void ShowWaveMessage(string message)
+    {
+        if (waveMessageText != null)
         {
-            gameTime += Time.deltaTime;
-            if (timerText != null)
-                timerText.text = FormatTime(Mathf.RoundToInt(gameTime));
+            waveMessageText.text = message;
+            StopAllCoroutines();
+            StartCoroutine(WaveMessageRoutine());
         }
-
-        if (killCountText != null && GameManager.Instance != null)
-            killCountText.text = $"Kill: {GameManager.Instance.KillCount}";
     }
 
-    // ── HUD ───────────────────────────────────────────────
-
-    private void UpdateHpBar(float current, float max)
+    private IEnumerator WaveMessageRoutine()
     {
-        if (hpBar != null) hpBar.value = current / max;
+        waveMessageText.gameObject.SetActive(true);
+        yield return new WaitForSeconds(2f);
+        waveMessageText.gameObject.SetActive(false);
     }
 
-    private void UpdateExpBar(int current, int required, int level)
+    // ── 🎲 레벨업 카드 시스템 (완벽 랜덤 셔플 적용) ───────────────────────
+    public void ShowUpgradeSelection()
     {
-        if (expBar != null) expBar.value = (float)current / required;
-        if (levelText != null) levelText.text = $"Lv.{level}";
-    }
+        if (upgradePool == null || upgradePool.Count == 0) return;
 
-    // ── 레벨업 카드 ───────────────────────────────────────
+        Time.timeScale = 0f; // 게임 일시정지
+        SetActive(upgradePanel, true);
 
-    public void ShowUpgradeCards()
-    {
-        if (upgradePool == null || upgradePool.Length == 0)
-        {
-            Debug.LogWarning("[UIManager] upgradePool이 비어 있습니다. " +
-                             "UpgradeData 에셋을 만들고 Inspector에 연결하세요");
-            playerExpSystem?.OnUpgradeSelected();
-            return;
-        }
+        // 이전 리스트 비우기
+        currentDisplayedUpgrades.Clear();
 
-        if (upgradePanel == null || upgradeButtons == null || upgradeButtons.Length == 0)
-        {
-            Debug.LogWarning("[UIManager] upgradePanel 또는 upgradeButtons가 연결되지 않았습니다");
-            playerExpSystem?.OnUpgradeSelected();
-            return;
-        }
+        // 1. 원본 풀이 망가지지 않도록 복사본 풀을 생성합니다.
+        List<UpgradeData> tempPool = new List<UpgradeData>(upgradePool);
 
-        int count = Mathf.Min(upgradeButtons.Length, upgradePool.Length, 3);
-        currentChoices = PickRandom(count);
-        upgradePanel.SetActive(true);
+        // UI 버튼 개수와 현재 카드 풀 크기 중 작은 값을 선택 (보통 3개)
+        int countToDisplay = Mathf.Min(upgradeButtons.Length, tempPool.Count);
 
         for (int i = 0; i < upgradeButtons.Length; i++)
         {
-            upgradeButtons[i].onClick.RemoveAllListeners();
-
-            bool valid = i < count && currentChoices[i] != null;
-            upgradeButtons[i].gameObject.SetActive(valid);
-            if (!valid) continue;
-
-            UpgradeData data = currentChoices[i];
-
-            if (upgradeNameTexts != null && i < upgradeNameTexts.Length && upgradeNameTexts[i] != null)
-                upgradeNameTexts[i].text = data.upgradeName;
-            if (upgradeDescTexts != null && i < upgradeDescTexts.Length && upgradeDescTexts[i] != null)
-                upgradeDescTexts[i].text = data.description;
-            if (upgradeIconImages != null && i < upgradeIconImages.Length && upgradeIconImages[i] != null)
+            if (i < countToDisplay)
             {
-                upgradeIconImages[i].sprite = data.icon;
-                upgradeIconImages[i].enabled = data.icon != null;
-            }
+                // 2. 남은 카드 풀에서 무작위로 인덱스를 하나 뽑습니다. (정밀한 랜덤 함수 활용)
+                int randIndex = Random.Range(0, tempPool.Count);
+                UpgradeData selectedUpgrade = tempPool[randIndex];
 
-            int captured = i;
-            upgradeButtons[i].onClick.AddListener(() => OnCardClicked(captured));
+                // 3. 뽑은 카드를 현재 화면 표시 바구니에 넣고, 복사본 풀에서는 지워버립니다. (★중복 방지 핵심)
+                currentDisplayedUpgrades.Add(selectedUpgrade);
+                tempPool.RemoveAt(randIndex);
+
+                // 4. UI 컴포넌트에 텍스트 및 데이터 대입
+                if (upgradeNameTexts != null && i < upgradeNameTexts.Length && upgradeNameTexts[i] != null)
+                    upgradeNameTexts[i].text = selectedUpgrade.upgradeName;
+
+                if (upgradeDescTexts != null && i < upgradeDescTexts.Length && upgradeDescTexts[i] != null)
+                    upgradeDescTexts[i].text = selectedUpgrade.description;
+
+                if (upgradeIconImages != null && i < upgradeIconImages.Length && upgradeIconImages[i] != null)
+                    upgradeIconImages[i].sprite = selectedUpgrade.icon;
+
+                upgradeButtons[i].gameObject.SetActive(true);
+            }
+            else
+            {
+                // 표시할 카드가 모자라면 버튼을 비활성화합니다.
+                upgradeButtons[i].gameObject.SetActive(false);
+            }
         }
     }
 
-    private void OnCardClicked(int index)
+    public void OnUpgradeCardClicked(int index)
     {
-        if (currentChoices == null || index >= currentChoices.Length) return;
+        if (index >= currentDisplayedUpgrades.Count) return;
 
-        ApplyUpgrade(currentChoices[index]);
-        upgradePanel.SetActive(false);
-        playerExpSystem?.OnUpgradeSelected();
+        UpgradeData chosen = currentDisplayedUpgrades[index];
+        ApplyUpgrade(chosen);
+
+        SetActive(upgradePanel, false);
+        Time.timeScale = 1f; // 게임 다시 재생
     }
-
-    // ── 강화 적용 ─────────────────────────────────────────
-    // PlayerController.Stats(PlayerStatsSO)에 직접 누적합니다.
-    // SO를 통해 값이 쌓이므로 PlayerController가 매 프레임 SO를 읽으면 즉시 반영됩니다.
 
     private void ApplyUpgrade(UpgradeData data)
     {
-        if (data == null) return;
-
-        // PlayerController에서 SO 참조를 가져옴
-        PlayerStatsSO stats = playerController != null ? playerController.Stats : null;
+        if (playerStats == null) return;
 
         switch (data.upgradeType)
         {
             case UpgradeType.AttackDamage:
-                stats?.ApplyDamageMultiplier(data.multiplier);
+                playerStats.AddRuntimeDamage(data.multiplier - 1f);
                 break;
 
             case UpgradeType.MoveSpeed:
-                stats?.ApplyMoveSpeedMultiplier(data.multiplier);
+                playerStats.AddRuntimeMoveSpeed(data.multiplier - 1f);
                 break;
 
             case UpgradeType.FireRate:
-                stats?.ApplyFireRateMultiplier(data.multiplier);
+                playerStats.AddRuntimeFireRate(data.multiplier);
                 break;
 
             case UpgradeType.MaxHp:
-                playerHealth?.SetMaxHp(playerHealth.MaxHp + data.flatValue);
+                HealthSystem playerHealth = GameObject.FindGameObjectWithTag("Player")?.GetComponent<HealthSystem>();
+                if (playerHealth != null)
+                {
+                    playerHealth.Heal(data.flatValue);
+                }
                 break;
 
             case UpgradeType.HpHeal:
-                playerHealth?.Heal(data.flatValue);
-                break;
-
-            case UpgradeType.BulletPenetration:
-                stats?.ApplyPenetrationBonus(Mathf.RoundToInt(data.flatValue));
+                GameObject.FindGameObjectWithTag("Player")?.GetComponent<HealthSystem>()?.Heal(data.flatValue);
                 break;
         }
 
-        Debug.Log($"[Upgrade] 적용: {data.upgradeName}");
+        Debug.Log($"[인게임 강화 성공] 선택 카드: {data.upgradeName}");
     }
 
-    // ── 랜덤 카드 선택 (Fisher-Yates 셔플) ───────────────
-
-    private UpgradeData[] PickRandom(int count)
+    // ── 패널 제어 유틸리티 ───────────────────────────────────
+    private void SetActive(GameObject panel, bool state)
     {
-        UpgradeData[] pool = (UpgradeData[])upgradePool.Clone();
-        for (int i = pool.Length - 1; i > 0; i--)
-        {
-            int j = Random.Range(0, i + 1);
-            (pool[i], pool[j]) = (pool[j], pool[i]);
-        }
-        UpgradeData[] result = new UpgradeData[count];
-        for (int i = 0; i < count; i++) result[i] = pool[i];
-        return result;
+        if (panel != null) panel.SetActive(state);
     }
 
-    // ── 웨이브 알림 ───────────────────────────────────────
-
-    public void ShowWaveMessage(string message)
+    public void ShowGameOver(int finalKills, int finalTimeSeconds)
     {
-        if (waveMessageText == null) return;
-        StopCoroutine(nameof(HideWaveMessage));
-        waveMessageText.text = message;
-        waveMessageText.gameObject.SetActive(true);
-        StartCoroutine(nameof(HideWaveMessage));
-    }
+        if (sessionTimeText != null) sessionTimeText.text = $"생존시간 : {FormatTime(finalTimeSeconds)}";
+        if (sessionKillsText != null) sessionKillsText.text = $"처치한 적: {finalKills} 마리";
 
-    private IEnumerator HideWaveMessage()
-    {
-        yield return new WaitForSeconds(2f);
-        if (waveMessageText != null) waveMessageText.gameObject.SetActive(false);
-    }
-
-    // ── 게임오버 / 클리어 / 일시정지 ─────────────────────
-
-    public void ShowGameOver(int kills, int seconds)
-    {
         SetActive(gameOverPanel, true);
 
-        if (gameOverKillText != null) gameOverKillText.text = $"처치 수: {kills}";
-        if (gameOverTimeText != null) gameOverTimeText.text = $"생존 시간: {FormatTime(seconds)}";
+        if (gameOverKillText != null) gameOverKillText.text = $"이번 판 처치: {finalKills}";
         if (gameOverBestKillText != null) gameOverBestKillText.text = $"최고 처치: {GameManager.Instance?.BestKill}";
         if (gameOverBestTimeText != null) gameOverBestTimeText.text = $"최고 기록: {FormatTime(GameManager.Instance?.BestTime ?? 0)}";
     }
 
-    public void ShowStageClear(int kills, int seconds) => SetActive(stageClearPanel, true);
+    public void ShowStageClear(int finalKills, int finalTimeSeconds)
+    {
+        if (sessionTimeText != null) sessionTimeText.text = $"생존시간 : {FormatTime(finalTimeSeconds)}";
+        if (sessionKillsText != null) sessionKillsText.text = $"처치한 적: {finalKills} 마리";
+
+        SetActive(stageClearPanel, true);
+    }
 
     public void ShowPauseMenu() => SetActive(pausePanel, true);
     public void HidePauseMenu() => SetActive(pausePanel, false);
-
-    // ── 버튼 이벤트 ───────────────────────────────────────
-
     public void OnRestartButton() => GameManager.Instance?.RestartGame();
     public void OnMainMenuButton() => GameManager.Instance?.GoToMainMenu();
-
-    // ── 유틸 ──────────────────────────────────────────────
-
-    public void ShowShopMenu()
-    {
-        SetActive(ShopPanel, true);
-    }
-
-    public void HideShopMenu()
-    {
-        SetActive(ShopPanel, false);
-    }
-
-    public void QuiltGame()
-    {
-        Application.Quit();
-    }
-
-    private static void SetActive(GameObject go, bool active) { if (go != null) go.SetActive(active); }
-
-    private static string FormatTime(int s) => $"{s / 60:00}:{s % 60:00}";
+    public void ShowShopMenu() => SetActive(ShopPanel, true);
+    public void HideShopMenu() => SetActive(ShopPanel, false);
 }

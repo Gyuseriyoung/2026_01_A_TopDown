@@ -86,16 +86,16 @@ public class PlayerController : MonoBehaviour
 
         if (bullet != null)
         {
+            // ⭐️ PlayerStatsSO에 정의되어 있는 최종 스탯 데이터 가져오기
             float damage = playerStats != null ? playerStats.BulletDamage : 10f;
-            float speed = playerStats != null ? playerStats.BulletSpeed : 10f;
-
-            // ⭐️ 정상 컴파일된 SO에서 최종 관통력을 가져옵니다.
+            float speed = playerStats != null ? playerStats.baseBulletSpeed : 10f; // ⭐️ baseBulletSpeed 연결
             int penetrationCount = playerStats != null ? playerStats.PenetrationCount : 0;
 
-            bullet.SetDamage(damage);
-            bullet.Init(direction, speed, gameObject.tag,penetrationCount);
+            // ⭐️ 에러 해결: BulletController.cs의 Init 함수 규칙에 맞게 한 번에 데이터를 밀어 넣습니다.
+            // 기존 에러 사진에 뜨던 bullet.SetDamage(damage)는 아예 지워야 정상 작동합니다!
+            bullet.Init(direction, speed, gameObject.tag, penetrationCount);
 
-            
+
         }
     }
 

@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: PlayerStats
   m_EditorClassIdentifier: Assembly-CSharp::PlayerStatsSO
   baseDamage: 10
-  baseMoveSpeed: 5
+  baseMoveSpeed: 7.5
   baseFireRate: 0.5
   baseBulletSpeed: 10
   basePenetrationCount: 0

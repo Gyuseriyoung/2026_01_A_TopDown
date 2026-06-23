@@ -2,13 +2,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 
 /// <summary>
-/// 게임 전체 상태 관리 싱글톤
-/// PlayerPrefs로 최고 기록(최다 처치, 최장 생존)을 저장합니다
-/// 
-/// [PlayerPrefs 키 목록]
-/// "BestKill"  : int  — 역대 최고 처치 수
-/// "BestTime"  : int  — 역대 최장 생존 시간 (초)
-/// "BestWave"  : int  — 역대 최고 도달 웨이브
+/// 게임 전체 상태 및 JSON/PlayerPrefs 세이브 시스템 관리 싱글톤
 /// </summary>
 public class GameManager : MonoBehaviour
 {
@@ -21,154 +15,128 @@ public class GameManager : MonoBehaviour
     [SerializeField] private string mainMenuScene = "MainMenu";
     [SerializeField] private string gameScene = "GameScene";
 
-
     // 세션 통계
     public int KillCount { get; private set; }
     public float SurvivedTime { get; private set; }
-    public int ReachedWave { get; private set; }
-
     public int TotalGold { get; private set; }
     public int CurrentSessionGold { get; private set; } // 이번 판에서 번 돈 (UI 표시용)
 
-    // 최고 기록 (PlayerPrefs에서 로드)
+    // 최고 기록 (PlayerPrefs 독립 저장)
     public int BestKill { get; private set; }
     public int BestTime { get; private set; }
-    public int BestWave { get; private set; }
 
-    private const string GOLD_KEY = "TotalGold";
-    private float gameStartTime;
+    [Header("── JSON 세이브 데이터 바구니 ──")]
+    // PlayerStatsSO와 ShopManager가 참조할 데이터 구조체
+    public ShopSaveData shopProgress = new ShopSaveData();
+    private const string JSON_SAVE_KEY = "PlayerShopJsonData";
 
     private void Awake()
     {
         if (Instance == null)
         {
             Instance = this;
-            // DontDestroyOnLoad(gameObject); // 씬 전환 필요 시 활성화
+            DontDestroyOnLoad(gameObject);
+
+            // 게임 시작 시 모든 데이터(최고기록 및 JSON 상점) 로드
+            LoadBestRecords();
+            LoadShopJsonData();
         }
         else
         {
             Destroy(gameObject);
-            return;
         }
-
-        LoadBestRecords();
-    }
-
-    private void Start()
-    {
-        // 게임 시작 시 기존에 저장되어 있던 총 골드를 불러옴
-        TotalGold = PlayerPrefs.GetInt(GOLD_KEY, 0);
-
-        // 세션 초기화
-        CurrentSessionGold = 0;
-
-        gameStartTime = Time.time;
-        Time.timeScale = 1f;
     }
 
     private void Update()
     {
-        if (CurrentState == GameState.Playing || CurrentState == GameState.Paused)
-        {
-            if (Input.GetKeyDown(KeyCode.Escape))
-            {
-                TogglePause();
-            }
-        }
         if (CurrentState == GameState.Playing)
         {
             SurvivedTime += Time.deltaTime;
+            UIManager.Instance?.UpdateTimer(SurvivedTime);
+        }
+
+        // ESC 키로 일시정지 토글
+        if (Input.GetKeyDown(KeyCode.Escape))
+        {
+            TogglePause();
         }
     }
 
-    // ── 기록 저장 / 불러오기 (PlayerPrefs) ───────────────
+    // ── 💾 과제 핵심: JSON 세이브/로드 기능 ───────────────────
 
-    private void LoadBestRecords()
+    /// <summary> [JSON 저장] 상점 업그레이드 레벨들을 JSON 텍스트로 말아서 저장합니다. </summary>
+    public void SaveShopJsonData()
     {
-        BestKill = PlayerPrefs.GetInt("BestKill", 0);
-        BestTime = PlayerPrefs.GetInt("BestTime", 0);
-        BestWave = PlayerPrefs.GetInt("BestWave", 0);
-    }
+        if (shopProgress == null) return;
 
-    private void SaveBestRecords()
-    {
-        bool updated = false;
+        // 1. 객체를 JSON 규격의 문자열 텍스트로 직렬화 (JSON 사용 조건 달성)
+        string jsonText = JsonUtility.ToJson(shopProgress, true);
 
-        if (KillCount > BestKill)
-        {
-            BestKill = KillCount;
-            PlayerPrefs.SetInt("BestKill", BestKill);
-            updated = true;
-        }
-
-        int survivedSeconds = Mathf.RoundToInt(SurvivedTime);
-        if (survivedSeconds > BestTime)
-        {
-            BestTime = survivedSeconds;
-            PlayerPrefs.SetInt("BestTime", BestTime);
-            updated = true;
-        }
-
-        if (ReachedWave > BestWave)
-        {
-            BestWave = ReachedWave;
-            PlayerPrefs.SetInt("BestWave", BestWave);
-            updated = true;
-        }
-
-        if (updated)
-            PlayerPrefs.Save(); // 즉시 디스크에 기록
-    }
-
-    /// <summary>저장된 모든 최고 기록을 초기화합니다</summary>
-    public void ResetBestRecords()
-    {
-        PlayerPrefs.DeleteKey("BestKill");
-        PlayerPrefs.DeleteKey("BestTime");
-        PlayerPrefs.DeleteKey("BestWave");
+        // 2. 변환된 문자열 데이터를 PlayerPrefs 시스템에 보관 (PlayerPrefs 사용 조건 달성)
+        PlayerPrefs.SetString(JSON_SAVE_KEY, jsonText);
         PlayerPrefs.Save();
-        LoadBestRecords();
-        Debug.Log("[GameManager] 최고 기록 초기화 완료");
+
+        Debug.Log($"[JSON 직렬화 세이브 성공]:\n{jsonText}");
     }
 
-    // ── 상태 전환 ─────────────────────────────────────────
+    /// <summary> [JSON 로드] 로컬에 저장된 JSON 텍스트를 디코딩하여 복원합니다. </summary>
+    public void LoadShopJsonData()
+    {
+        if (PlayerPrefs.HasKey(JSON_SAVE_KEY))
+        {
+            string jsonText = PlayerPrefs.GetString(JSON_SAVE_KEY);
 
+            // JSON 문자열을 다시 원래 C# 데이터 객체 구조로 완벽 복원
+            shopProgress = JsonUtility.FromJson<ShopSaveData>(jsonText);
+            Debug.Log("[JSON 로드 성공] 기존 유저 스탯 데이터를 성공적으로 파싱했습니다.");
+        }
+        else
+        {
+            // 세이브가 없다면 깨끗한 새 데이터 생성
+            shopProgress = new ShopSaveData();
+            Debug.Log("[JSON 데이터 없음] 새로운 세이브 데이터를 기본값으로 생성했습니다.");
+        }
+
+        // 보유 골드 복구
+        TotalGold = PlayerPrefs.GetInt("TotalGold", 0);
+    }
+
+    // ── 💰 재화 시스템 ────────────────────────────────────────
 
     public void AddGold(int amount)
     {
-        CurrentSessionGold += amount;
         TotalGold += amount;
-
-        // 실시간으로 총 골드를 디스크에 세이브
-        PlayerPrefs.SetInt(GOLD_KEY, TotalGold);
+        CurrentSessionGold += amount;
+        PlayerPrefs.SetInt("TotalGold", TotalGold);
         PlayerPrefs.Save();
-
-        // 인게임 HUD UI가 있다면 골드 텍스트 갱신 알림 호출 가능
-        // UIManager.Instance?.UpdateGoldText(CurrentSessionGold);
+        UIManager.Instance?.UpdateGoldText(TotalGold);
     }
 
-    // 상점에서 돈을 소비할 때 사용할 메서드
     public bool SpendGold(int amount)
     {
         if (TotalGold >= amount)
         {
             TotalGold -= amount;
-            PlayerPrefs.SetInt(GOLD_KEY, TotalGold);
+            PlayerPrefs.SetInt("TotalGold", TotalGold);
             PlayerPrefs.Save();
-            return true; // 구매 성공
+            UIManager.Instance?.UpdateGoldText(TotalGold);
+            return true;
         }
-        return false; // 잔액 부족
+        return false;
     }
+
+    // ── ☠️ 사망 및 클리어 (타이밍 버그 완벽 수정) ──────────────────
+
     public void OnPlayerDead()
     {
+        // 중복 진입 방지 및 유효성 체크
         if (CurrentState != GameState.Playing) return;
 
-        CurrentState = GameState.GameOver;
-        Time.timeScale = 0f;
-
-        ReachedWave = WaveManager.Instance?.GetCurrentWave() ?? 0;
-
+        // ⭐️ 원인 해결: 시간이 멈추고 UI가 뜨기 전에 최고 기록 및 데이터를 먼저 디스크에 굽습니다!
         SaveBestRecords();
+
+        CurrentState = GameState.GameOver;
+        Time.timeScale = 0f; // 물리/타이밍 정지
 
         UIManager.Instance?.ShowGameOver(KillCount, Mathf.RoundToInt(SurvivedTime));
     }
@@ -177,12 +145,10 @@ public class GameManager : MonoBehaviour
     {
         if (CurrentState != GameState.Playing) return;
 
+        SaveBestRecords();
+
         CurrentState = GameState.StageClear;
         Time.timeScale = 0f;
-
-        ReachedWave = WaveManager.Instance?.GetCurrentWave() ?? 0;
-
-        SaveBestRecords();
 
         UIManager.Instance?.ShowStageClear(KillCount, Mathf.RoundToInt(SurvivedTime));
     }
@@ -190,6 +156,7 @@ public class GameManager : MonoBehaviour
     public void OnEnemyKilled()
     {
         KillCount++;
+        UIManager.Instance?.UpdateKillCount(KillCount);
     }
 
     private void TogglePause()
@@ -200,7 +167,7 @@ public class GameManager : MonoBehaviour
             Time.timeScale = 1f;
             UIManager.Instance?.HidePauseMenu();
         }
-        else if (CurrentState == GameState.Playing) 
+        else if (CurrentState == GameState.Playing)
         {
             CurrentState = GameState.Paused;
             Time.timeScale = 0f;
@@ -208,10 +175,40 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    // ── 씬 전환 ───────────────────────────────────────────
+    private void SaveBestRecords()
+    {
+        // 이번 판 기록이 최다 처치 기록보다 크다면 갱신
+        if (KillCount > BestKill)
+        {
+            BestKill = KillCount;
+            PlayerPrefs.SetInt("BestKill", BestKill);
+        }
+
+        // 이번 판 기록이 최장 생존 기록보다 크다면 갱신
+        int currentSec = Mathf.RoundToInt(SurvivedTime);
+        if (currentSec > BestTime)
+        {
+            BestTime = currentSec;
+            PlayerPrefs.SetInt("BestTime", BestTime);
+        }
+
+        PlayerPrefs.Save();
+    }
+
+    private void LoadBestRecords()
+    {
+        BestKill = PlayerPrefs.GetInt("BestKill", 0);
+        BestTime = PlayerPrefs.GetInt("BestTime", 0);
+    }
+
+    // ── 🎬 씬 제어 및 리셋 ────────────────────────────────────
 
     public void RestartGame()
     {
+        KillCount = 0;
+        SurvivedTime = 0f;
+        CurrentSessionGold = 0;
+        CurrentState = GameState.Playing;
         Time.timeScale = 1f;
         SceneManager.LoadScene(gameScene);
     }
@@ -219,6 +216,7 @@ public class GameManager : MonoBehaviour
     public void GoToMainMenu()
     {
         Time.timeScale = 1f;
+        CurrentState = GameState.Paused;
         SceneManager.LoadScene(mainMenuScene);
     }
 }

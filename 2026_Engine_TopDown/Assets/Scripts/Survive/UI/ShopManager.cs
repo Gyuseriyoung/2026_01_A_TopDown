@@ -39,6 +39,13 @@ public class ShopManager : MonoBehaviour
 
     private void OnEnable()
     {
+        if (GameManager.Instance != null && GameManager.Instance.shopProgress != null)
+        {
+            damageLevel = GameManager.Instance.shopProgress.dmgLevel;
+            moveSpeedLevel = GameManager.Instance.shopProgress.speedLevel;
+            fireRateLevel = GameManager.Instance.shopProgress.fireRateLevel;
+            penetrationLevel = GameManager.Instance.shopProgress.penetrationLevel;
+        }
         UpdateShopUI();
     }
 
@@ -85,23 +92,29 @@ public class ShopManager : MonoBehaviour
 
     // ── 구매 버튼 연동 함수들 ───────────────────────────
 
-    public void BuyDamageUpgrade() => HandlePurchase("Shop_Upgrade_Damage", ref damageLevel);
-    public void BuyMoveSpeedUpgrade() => HandlePurchase("Shop_Upgrade_MoveSpeed", ref moveSpeedLevel);
-    public void BuyFireRateUpgrade() => HandlePurchase("Shop_Upgrade_FireRate", ref fireRateLevel);       // ⭐️ 버튼 연동용
-    public void BuyPenetrationUpgrade() => HandlePurchase("Shop_Upgrade_Penetration", ref penetrationLevel); // ⭐️ 버튼 연동용
+    public void BuyDamageUpgrade() => HandlePurchase(ref GameManager.Instance.shopProgress.dmgLevel, ref damageLevel);
+    public void BuyMoveSpeedUpgrade() => HandlePurchase(ref GameManager.Instance.shopProgress.speedLevel, ref moveSpeedLevel);
+    public void BuyFireRateUpgrade() => HandlePurchase(ref GameManager.Instance.shopProgress.fireRateLevel, ref fireRateLevel);
+    public void BuyPenetrationUpgrade() => HandlePurchase(ref GameManager.Instance.shopProgress.penetrationLevel, ref penetrationLevel);
 
     // 구매 처리를 통합 관리하는 함수
-    private void HandlePurchase(string saveKey, ref int currentLevel)
+    private void HandlePurchase(ref int jsonLevelSlot, ref int localDisplayLevel)
     {
-        if (currentLevel >= maxLevel) return;
+        if (localDisplayLevel >= maxLevel) return;
 
-        int cost = baseUpgradeCost + (currentLevel * costIncreasePerLevel);
+        int cost = baseUpgradeCost + (localDisplayLevel * costIncreasePerLevel);
 
         if (GameManager.Instance != null && GameManager.Instance.SpendGold(cost))
         {
-            currentLevel++;
-            PlayerPrefs.SetInt(saveKey, currentLevel);
-            PlayerPrefs.Save();
+            // 1. JSON 세이브 데이터 바구니의 밸류를 증가시킵니다.
+            jsonLevelSlot++;
+
+            // 2. 현재 상점 화면 표시용 로컬 데이터 갱신
+            localDisplayLevel = jsonLevelSlot;
+
+            // 3. ⭐️ 변경 완료되었으므로 GameManager를 통해 JSON 세이브를 수행합니다! (과제 조건 만족)
+            GameManager.Instance.SaveShopJsonData();
+
             UpdateShopUI();
         }
     }
