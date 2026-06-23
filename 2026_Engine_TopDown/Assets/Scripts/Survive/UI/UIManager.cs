@@ -70,6 +70,20 @@ public class UIManager : MonoBehaviour
 
     public void UpdateHP(float current, float max) { if (hpBar != null) hpBar.value = current / max; }
     public void UpdateEXP(float current, float max) { if (expBar != null) expBar.value = current / max; }
+    public void UpdateEXPFromInts(int currentExp, int maxExp ,int currentLevel)
+    {
+        if (expBar != null && maxExp > 0)
+        {
+            // 정수형 데이터를 나눗셈 처리를 위해 float로 형변환하여 슬라이더 바에 반영
+            expBar.value = (float)currentExp / maxExp;
+        }
+
+        if (levelText != null)
+        {
+            // 혹시 모르니 레벨 텍스트도 여기서 실시간으로 안전하게 동기화해 줍니다.
+            levelText.text = $"LV.{currentLevel}";
+        }
+    }
     public void UpdateLevel(int level) { if (levelText != null) levelText.text = $"LV.{level}"; }
     public void UpdateKillCount(int count) { if (killCountText != null) killCountText.text = $"{count}"; }
     public void UpdateGoldText(int gold) { if (goldText != null) goldText.text = $"{gold}"; }
@@ -154,18 +168,26 @@ public class UIManager : MonoBehaviour
 
     public void OnUpgradeCardClicked(int index)
     {
-        if (index >= currentDisplayedUpgrades.Count) return;
+        // ⭐️ 예외 처리 체크
+        if (currentDisplayedUpgrades == null || index >= currentDisplayedUpgrades.Count) return;
 
+        // 1. ⭐️ [버그 해결 핵심] 카드가 클릭되자마자 시간 스케일부터 먼저 1f로 복구합니다!
+        // 이래야 유니티의 물리, 타이밍, UI 액션이 정상 루프로 돌아와 렉 걸리지 않고 다음 코드를 실행합니다.
+        Time.timeScale = 1f;
+
+        // 2. 능력치 강화 적용
         UpgradeData chosen = currentDisplayedUpgrades[index];
         ApplyUpgrade(chosen);
 
+        // 3. 레벨업 선택창 패널 닫기
         SetActive(upgradePanel, false);
-        Time.timeScale = 1f; // 게임 다시 재생
+
+        Debug.Log($"[클릭 액션 완료] 인덱스 {index}번 카드 정상 처리됨");
     }
 
     private void ApplyUpgrade(UpgradeData data)
     {
-        if (playerStats == null) return;
+        if (playerStats == null || data == null) return;
 
         switch (data.upgradeType)
         {
@@ -182,19 +204,30 @@ public class UIManager : MonoBehaviour
                 break;
 
             case UpgradeType.MaxHp:
-                HealthSystem playerHealth = GameObject.FindGameObjectWithTag("Player")?.GetComponent<HealthSystem>();
-                if (playerHealth != null)
+                GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
+                if (playerObj != null)
                 {
-                    playerHealth.Heal(data.flatValue);
+                    HealthSystem playerHealth = playerObj.GetComponent<HealthSystem>();
+                    playerHealth?.Heal(data.flatValue);
                 }
                 break;
 
             case UpgradeType.HpHeal:
-                GameObject.FindGameObjectWithTag("Player")?.GetComponent<HealthSystem>()?.Heal(data.flatValue);
+                GameObject targetPlayer = GameObject.FindGameObjectWithTag("Player");
+                if (targetPlayer != null)
+                {
+                    HealthSystem pHealth = targetPlayer.GetComponent<HealthSystem>();
+                    pHealth?.Heal(data.flatValue);
+                }
+                break;
+
+            case UpgradeType.BulletPenetration: // 혹은 프로젝트에 정의된 관통 카드 타입 이름
+                                          // 인게임 누적 관통력 증가 카드 효과 주입
+                playerStats.AddRuntimePenetration((int)data.flatValue);
                 break;
         }
 
-        Debug.Log($"[인게임 강화 성공] 선택 카드: {data.upgradeName}");
+        Debug.Log($"[인게임 강화 성공] 적용된 카드: {data.upgradeName}");
     }
 
     // ── 패널 제어 유틸리티 ───────────────────────────────────

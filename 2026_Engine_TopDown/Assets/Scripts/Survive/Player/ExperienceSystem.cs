@@ -50,7 +50,7 @@ public class ExperienceSystem : MonoBehaviour
 
         // 게임 일시 정지 후 강화 UI 표시
         Time.timeScale = 0f;
-        UIManager.Instance?.ShowUpgradeCards();
+        UIManager.Instance?.ShowUpgradeSelection();
     }
 
     /// <summary>강화 선택 완료 후 UIManager에서 호출</summary>

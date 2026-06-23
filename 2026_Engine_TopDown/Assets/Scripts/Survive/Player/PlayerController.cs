@@ -78,6 +78,8 @@ public class PlayerController : MonoBehaviour
 
     private void Fire()
     {
+        if (mainCamera == null || bulletPrefab == null || firePoint == null) return;
+
         Vector3 mouseWorld = mainCamera.ScreenToWorldPoint(Input.mousePosition);
         Vector2 direction = ((Vector2)mouseWorld - (Vector2)firePoint.position).normalized;
 
@@ -86,16 +88,13 @@ public class PlayerController : MonoBehaviour
 
         if (bullet != null)
         {
-            // ⭐️ PlayerStatsSO에 정의되어 있는 최종 스탯 데이터 가져오기
+            // ⭐️ [관통력 버그 해결 핵심]: ScriptableObject로부터 실시간 최종 스탯을 추출합니다.
             float damage = playerStats != null ? playerStats.BulletDamage : 10f;
-            float speed = playerStats != null ? playerStats.baseBulletSpeed : 10f; // ⭐️ baseBulletSpeed 연결
+            float speed = playerStats != null ? playerStats.baseBulletSpeed : 10f;
             int penetrationCount = playerStats != null ? playerStats.PenetrationCount : 0;
 
-            // ⭐️ 에러 해결: BulletController.cs의 Init 함수 규칙에 맞게 한 번에 데이터를 밀어 넣습니다.
-            // 기존 에러 사진에 뜨던 bullet.SetDamage(damage)는 아예 지워야 정상 작동합니다!
-            bullet.Init(direction, speed, gameObject.tag, penetrationCount);
-
-
+            // ⭐️ 새로 바뀐 Init 규격으로 데이터를 순서대로 한 번에 넘겨줍니다!
+            bullet.Init(direction, speed, gameObject.tag, penetrationCount, damage);
         }
     }
 
