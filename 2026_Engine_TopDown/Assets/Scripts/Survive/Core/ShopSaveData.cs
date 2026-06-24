@@ -7,5 +7,5 @@ public class ShopSaveData
     public int dmgLevel = 0;
     public int speedLevel = 0;
     public int fireRateLevel = 0;
-    public int penetrationLevel = 0; // ⭐️ 관통 레벨 저장용 슬롯 필수
+    public int penetrationLevel = 0; 
 }

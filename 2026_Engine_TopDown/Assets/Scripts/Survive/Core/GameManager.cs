@@ -62,17 +62,14 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    // ── 💾 과제 핵심: JSON 세이브/로드 기능 ───────────────────
 
     /// <summary> [JSON 저장] 상점 업그레이드 레벨들을 JSON 텍스트로 말아서 저장합니다. </summary>
     public void SaveShopJsonData()
     {
         if (shopProgress == null) return;
 
-        // 1. 객체를 JSON 규격의 문자열 텍스트로 직렬화 (JSON 사용 조건 달성)
         string jsonText = JsonUtility.ToJson(shopProgress, true);
 
-        // 2. 변환된 문자열 데이터를 PlayerPrefs 시스템에 보관 (PlayerPrefs 사용 조건 달성)
         PlayerPrefs.SetString(JSON_SAVE_KEY, jsonText);
         PlayerPrefs.Save();
 

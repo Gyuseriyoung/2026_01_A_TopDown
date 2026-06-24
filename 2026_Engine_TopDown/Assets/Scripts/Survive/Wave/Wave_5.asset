@@ -12,14 +12,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 80837f61925aa5c4ebf38efcab3e5eac, type: 3}
   m_Name: Wave_5
   m_EditorClassIdentifier: Assembly-CSharp::WaveData
-  enemyCount: 1
+  enemyCount: 5
   spawnInterval: 1.5
   startDelay: 2
   waveType: 2
   circleSpawnCount: 12
   enemyPrefabs:
-  - {fileID: 5802415695520802573, guid: ae7869102344d50418a9cc0d97401bdd, type: 3}
+  - {fileID: 5802415695520802573, guid: 84432db24ed911a4cb4c1f767492177e, type: 3}
   spawnWeights: 
-  enemyHpMultiplier: 5
+  enemyHpMultiplier: 10
   enemySpeedMultiplier: 1.5
   enemyExpMultiplier: 1.25

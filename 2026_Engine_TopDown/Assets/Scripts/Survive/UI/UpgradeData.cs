@@ -23,7 +23,7 @@ public class UpgradeData : ScriptableObject
     [TextArea(2, 4)]
     public string description;
 
-    public Sprite icon;  // UIManager의 upgradeIcons[] 슬롯에 표시됩니다 (선택사항)
+    public Sprite icon;  
 
     [Header("강화 종류")]
     public UpgradeType upgradeType;
@@ -42,10 +42,10 @@ public class UpgradeData : ScriptableObject
 
 public enum UpgradeType
 {
-    AttackDamage,       // 공격력  (PlayerStats.damageMultiplier에 multiplier 누적)
-    MoveSpeed,          // 이동속도 (PlayerStats.moveSpeedMultiplier에 multiplier 누적)
-    FireRate,           // 발사속도 (PlayerStats.fireRateMultiplier에 multiplier 누적)
-    MaxHp,              // 최대 체력 (HealthSystem.SetMaxHp에 flatValue 덧셈)
-    HpHeal,             // 즉시 회복 (HealthSystem.Heal에 flatValue)
-    BulletPenetration,  // 관통 (확장용 — BulletController 수정 후 연결)
+    AttackDamage,       
+    MoveSpeed,          
+    FireRate,           
+    MaxHp,              
+    HpHeal,             
+    BulletPenetration,  
 }
